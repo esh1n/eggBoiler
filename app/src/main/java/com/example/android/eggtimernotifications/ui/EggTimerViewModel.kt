@@ -13,23 +13,36 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
- 
+
 package com.example.android.eggtimernotifications.ui
 
-import android.app.*
+import android.app.AlarmManager
+import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
+import android.os.Build
 import android.os.CountDownTimer
 import android.os.SystemClock
 import androidx.core.app.AlarmManagerCompat
-import androidx.core.content.ContextCompat
-import androidx.lifecycle.*
-import com.example.android.eggtimernotifications.receiver.AlarmReceiver
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.example.android.eggtimernotifications.R
-import com.example.android.eggtimernotifications.util.sendNotification
-import kotlinx.coroutines.*
+import com.example.android.eggtimernotifications.receiver.AlarmReceiver
+import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import javax.inject.Inject
 
-class EggTimerViewModel(private val app: Application) : AndroidViewModel(app) {
+@HiltViewModel
+class EggTimerViewModel @Inject constructor(
+    @ApplicationContext context: Context,
+    private val prefs: SharedPreferences
+) : ViewModel() {
 
     private val REQUEST_CODE = 0
     private val TRIGGER_TIME = "TRIGGER_AT"
@@ -40,10 +53,8 @@ class EggTimerViewModel(private val app: Application) : AndroidViewModel(app) {
     private val timerLengthOptions: IntArray
     private val notifyPendingIntent: PendingIntent
 
-    private val alarmManager = app.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-    private var prefs =
-        app.getSharedPreferences("com.example.android.eggtimernotifications", Context.MODE_PRIVATE)
-    private val notifyIntent = Intent(app, AlarmReceiver::class.java)
+    private val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+    private val notifyIntent = Intent(context, AlarmReceiver::class.java)
 
     private val _timeSelection = MutableLiveData<Int>()
     val timeSelection: LiveData<Int>
@@ -62,20 +73,20 @@ class EggTimerViewModel(private val app: Application) : AndroidViewModel(app) {
 
     init {
         _alarmOn.value = PendingIntent.getBroadcast(
-            getApplication(),
+            context,
             REQUEST_CODE,
             notifyIntent,
-            PendingIntent.FLAG_NO_CREATE
+            getFlagForAndroid31(PendingIntent.FLAG_NO_CREATE),
         ) != null
 
         notifyPendingIntent = PendingIntent.getBroadcast(
-            getApplication(),
+            context,
             REQUEST_CODE,
             notifyIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT
+            getFlagForAndroid31(PendingIntent.FLAG_UPDATE_CURRENT)
         )
 
-        timerLengthOptions = app.resources.getIntArray(R.array.minutes_array)
+        timerLengthOptions = context.resources.getIntArray(R.array.minutes_array)
 
         //If alarm is not null, resume the timer back for this alarm
         if (_alarmOn.value!!) {
@@ -83,6 +94,11 @@ class EggTimerViewModel(private val app: Application) : AndroidViewModel(app) {
         }
 
     }
+
+    private fun getFlagForAndroid31(initialFlag: Int) =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE or initialFlag
+        else initialFlag
+
 
     /**
      * Turns on or off the alarm
@@ -114,7 +130,7 @@ class EggTimerViewModel(private val app: Application) : AndroidViewModel(app) {
                 _alarmOn.value = true
                 val selectedInterval = when (timerLengthSelection) {
                     0 -> second * 10 //For testing only
-                    else ->timerLengthOptions[timerLengthSelection] * minute
+                    else -> timerLengthOptions[timerLengthSelection] * minute
                 }
                 val triggerTime = SystemClock.elapsedRealtime() + selectedInterval
 

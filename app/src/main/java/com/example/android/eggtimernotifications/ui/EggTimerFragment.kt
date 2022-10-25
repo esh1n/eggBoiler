@@ -16,50 +16,68 @@
 
 package com.example.android.eggtimernotifications.ui
 
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.graphics.Color
-import android.os.Build
 import android.os.Bundle
-import android.view.LayoutInflater
+import android.text.format.DateUtils
 import android.view.View
-import android.view.ViewGroup
-import android.widget.Toast
-import androidx.databinding.DataBindingUtil
+import android.widget.TextView
 import androidx.fragment.app.Fragment
-import androidx.lifecycle.ViewModelProviders
+import androidx.fragment.app.viewModels
 import com.example.android.eggtimernotifications.R
 import com.example.android.eggtimernotifications.databinding.FragmentEggTimerBinding
-import com.google.firebase.messaging.FirebaseMessaging
+import dagger.hilt.android.AndroidEntryPoint
 
-class EggTimerFragment : Fragment() {
+@AndroidEntryPoint
+class EggTimerFragment : Fragment(R.layout.fragment_egg_timer) {
 
     private val TOPIC = "breakfast"
 
-    override fun onCreateView(
-        inflater: LayoutInflater, container: ViewGroup?,
-        savedInstanceState: Bundle?
-    ): View? {
+    //   app:elapsedTime="@{eggTimerViewModel.elapsedTime}"
+    // android:onItemSelected="@{(parent, view, selection, id)-> eggTimerViewModel.setTimeSelected(selection)}"
+    //        android:selectedItemPosition="@{eggTimerViewModel.timeSelection}"
+    //   android:checked="@{eggTimerViewModel.isAlarmOn}"
+    //        android:onCheckedChanged="@{(button, on)-> eggTimerViewModel.setAlarm(on)}"
 
-        val binding: FragmentEggTimerBinding = DataBindingUtil.inflate(
-            inflater, R.layout.fragment_egg_timer, container, false
-        )
+    private var binding: FragmentEggTimerBinding? = null
+    private val viewModel: EggTimerViewModel by viewModels()
 
-        val viewModel = ViewModelProviders.of(this).get(EggTimerViewModel::class.java)
-
-        binding.eggTimerViewModel = viewModel
-        binding.lifecycleOwner = this.viewLifecycleOwner
-
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        binding = FragmentEggTimerBinding.bind(view)
         // TODO: Step 1.7 call create channel
-
-        return binding.root
+        observeVMChanges()
     }
+
+    private fun observeVMChanges() {
+        viewModel.elapsedTime.observe(viewLifecycleOwner) { elapsedTime ->
+            binding?.textView?.setElapsedTime(elapsedTime)
+        }
+        viewModel.timeSelection.observe(viewLifecycleOwner) { selection ->
+            binding?.minutesSpinner?.setOnItemClickListener(null)
+            binding?.minutesSpinner?.setSelection(selection)
+            binding?.minutesSpinner?.setOnItemClickListener { _, _, selection, _ ->
+                viewModel.setTimeSelected(selection)
+            }
+        }
+        viewModel.isAlarmOn.observe(viewLifecycleOwner) { isAlarmOn ->
+            binding?.onOffSwitch?.setOnCheckedChangeListener(null)
+            binding?.onOffSwitch?.isChecked = isAlarmOn
+            binding?.onOffSwitch?.setOnCheckedChangeListener{ view,isChecked ->
+                 viewModel.setAlarm(isChecked)
+            }
+        }
+    }
+
 
     private fun createChannel(channelId: String, channelName: String) {
         // TODO: Step 1.6 START create a channel
 
         // TODO: Step 1.6 END create a channel
 
+    }
+
+    fun TextView.setElapsedTime(value: Long) {
+        val seconds = value / 1000
+        text = if (seconds < 60) seconds.toString() else DateUtils.formatElapsedTime(seconds)
     }
 
     companion object {
